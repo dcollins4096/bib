@@ -95,26 +95,14 @@ def parse_file(fname):
             entries.append(this_entry)
     return entries
 
-
-if __name__ == '__main__':
-    default_input_file = "%s/Downloads/export-bibtex.bib"%os.environ['HOME']
-    parser = OptionParser("addbib.py -o <output=ms.bib> -i <input=~/Downloads/export-bibtex.bib>; url given prescedence.")
-    #parser.add_option("-o", "--outfile", dest="outfile", action = "store", default = "main.bib")
-    parser.add_option("-o", "--outfile", dest="outfile", action = "store", default = "m2.bib")
-    parser.add_option("-i", "--infile", dest="infile", action = "store", default = "test.bib")
-    parser.add_option("-t", "--test", dest="test", action = "store_true", default = False)
-    parser.add_option("-l", "--lookup", dest="lookup", action = "store", default = None)
-    parser.add_option("-c", "--clean", dest="clean", action="store", default=False)
-
-    (options, args) = parser.parse_args()
-
-    #read input library
-    entries = parse_file( options.infile )
+def read(fname):
+    entries = parse_file( fname )
     library={}
     for nentry,entry in enumerate(entries):
         e = bibtexparser.parse_string(entry)
         if len(e.failed_blocks) >0:
             pdb.set_trace()
+            print("FAILED BLOCKS")
         ee = e.entries[0]
         author_all = ee.fields_dict['author']
         year = ee.fields_dict['year'].value
@@ -127,10 +115,11 @@ if __name__ == '__main__':
         if year not in library[first_author]:
             library[first_author][year]={}
         library[first_author][year][title]=e
+    return library
 
-    output = ""
-
+def write(library,fname):
     authors = sorted(list(library.keys()))
+    output = ""
     for author in authors:
         years = sorted(list(library[author].keys()))
         for year in years:
@@ -143,9 +132,57 @@ if __name__ == '__main__':
                     else:
                         key = author + year[2:] + ' bcdefghiklmnopqrstuvwxyz'[ntitle]
                 output += bibtexparser.write_string(e)
-    fptr=open(options.outfile,'w')
+    fptr=open(fname,'w')
     fptr.write(output)
     fptr.close()
+
+if __name__ == '__main__':
+    default_input_file = "%s/Downloads/export-bibtex.bib"%os.environ['HOME']
+    parser = OptionParser("addbib.py -o <output=ms.bib> -i <input=~/Downloads/export-bibtex.bib>; url given prescedence.")
+    #parser.add_option("-o", "--outfile", dest="outfile", action = "store", default = "main.bib")
+    parser.add_option("-o", "--outfile", dest="outfile", action = "store", default = "m2.bib")
+    parser.add_option("-i", "--infile", dest="infile", action = "store", default = default_input_file)
+    parser.add_option("-t", "--test", dest="test", action = "store_true", default = False)
+    parser.add_option("-l", "--lookup", dest="lookup", action = "store", default = None)
+    parser.add_option("-c", "--clean", dest="clean", action="store_true", default=False)
+
+    (options, args) = parser.parse_args()
+    print(options)
+
+    #read input library
+    input_library = read( options.infile )
+
+    if options.lookup:
+        pass
+    else:
+        output_library = read(options.outfile)
+        for author in input_library:
+            if author not in output_library:
+                output_library[author]={}
+            for year in input_library[author]:
+                if year not in output_library[author]:
+                    output_library[author][year] = {}
+                for ntitle, title in enumerate(input_library[author][year]):
+                    if title not in output_library[author][year]:
+                        ee = input_library[author][year][title]
+                        pdb.set_trace()
+                        year = ee.entries[0].fields_dict['year'].value
+                        this_key = (author+year[2:]+' bcdefghijklmnopqrstuvwxyz'[ntitle]).strip()
+                        print(this_key)
+                        ee.entries[0].key=this_key
+                        output_library[author][year][title]=ee
+        write( output_library, options.outfile)
+    clean = ((options.clean == True)+(options.clean == 'True'))*(options.lookup==None)
+    print("CLEAN",clean, options.clean, options.lookup)
+    if clean:
+        if not os.path.exists("old_bibs"):
+            os.mkdir("old_bibs")
+        n_bibs = len(glob.glob("old_bibs/*"))
+        to_this = "old_bibs/old.bib.%d"%n_bibs
+        shutil.move(options.infile,to_this)
+
+
+
 
 
 
